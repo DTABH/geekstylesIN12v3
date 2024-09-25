@@ -1,10 +1,6 @@
 #include "stm8s.h"
 
-/* v.1.01 added the ability to set RGB LED parameters 22-09-2024
- *
- * v.1.00 initial release 14-09-2024
- *
- *
+/* version 1.02 
  * NixieClock IN12 V3 board (frontside board)
  * JM Nixieclock IN12 V4.2 20190514 (backside board)
  *
@@ -176,17 +172,17 @@ void gpio_init1(void) {
     
 		GPIO_Init(GPIOC, GPIO_PIN_3, GPIO_MODE_OUT_PP_HIGH_FAST);
 		TIM1_OC3Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_ENABLE,
-                (uint16_t)4047, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_SET,
+                (uint16_t)2047, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_SET,
                 TIM1_OCNIDLESTATE_RESET);
 		
 		GPIO_Init(GPIOC, GPIO_PIN_4, GPIO_MODE_OUT_PP_HIGH_FAST);
-		TIM1_OC4Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, (uint16_t) 4047, TIM1_OCPOLARITY_LOW,
+		TIM1_OC4Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, (uint16_t) 2047, TIM1_OCPOLARITY_LOW,
                              TIM1_OCIDLESTATE_SET);
 		
 		
 		GPIO_Init(GPIOC, GPIO_PIN_6, GPIO_MODE_OUT_PP_HIGH_FAST);
 		TIM1_OC1Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_ENABLE,
-                (uint16_t) 4047, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_SET,
+                (uint16_t) 2047, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_SET,
                 TIM1_OCNIDLESTATE_RESET); 
 		
 		
@@ -789,10 +785,11 @@ while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){
 				
 								while(read_button (BUTTON_UP)) {                      // If button (pin #9) is pressed
 									
-									parameter++;
+									parameter=parameter+10;
 									
-									
-}								
+									if (parameter > 100 ){
+										parameter =0;	
+}									}
 									
 									switch (i){
 										case 0:
@@ -859,9 +856,9 @@ while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){
 										FLASH_ProgramByte(0x40A6,green);
 										FLASH_ProgramByte(0x40A7,blue);
 										// set RGB LED 
-										TIM1_SetCompare1(( green * 16)); // green
-										TIM1_SetCompare3(( red * 16)); // red
-										TIM1_SetCompare4(( blue * 16));	// blue
+										TIM1_SetCompare1(( green * 20)); // green
+										TIM1_SetCompare3(( red * 20)); // red
+										TIM1_SetCompare4(( blue * 20));	// blue
 	
 
 										// set_ds3231_time(hours, minutes, seconds, day, month, year, weekday);  // Update the time with any changes
