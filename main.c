@@ -1,6 +1,8 @@
 #include "stm8s.h"
 
-/* version 1.02 
+/* version 1.02 simplified the LED RGB settings
+	 version 1.01 added the ability to set the LED RGB parameters
+	 version 1.00 initial release	
  * NixieClock IN12 V3 board (frontside board)
  * JM Nixieclock IN12 V4.2 20190514 (backside board)
  *
@@ -793,15 +795,15 @@ while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){
 									
 									switch (i){
 										case 0:
-											TIM1_SetCompare3(( parameter * 16)); // red
+											TIM1_SetCompare3(( parameter * 20)); // red
 											display_nixxies( 1, 255);
 											break;
 										case 1:
-											TIM1_SetCompare1(( parameter * 16)); // green
+											TIM1_SetCompare1(( parameter * 20)); // green
 											display_nixxies( 2, 255);
 											break;
 										case 2:
-											TIM1_SetCompare4(( parameter * 16));	// blue
+											TIM1_SetCompare4(( parameter * 20));	// blue
 											display_nixxies( 3, 255);
 											break;
 										default:
