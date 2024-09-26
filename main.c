@@ -2,7 +2,10 @@
 
 /* version 1.02 simplified the LED RGB settings
 	 version 1.01 added the ability to set the LED RGB parameters
-	 version 1.00 initial release	
+	 version 1.00 initial release
+ *
+ * IMPORTANT: SET OPTIONBYTE AFR0 to Port C5, C6 & C7 to Alternative Function with the ST Visual Programmer
+ *
  * NixieClock IN12 V3 board (frontside board)
  * JM Nixieclock IN12 V4.2 20190514 (backside board)
  *
@@ -368,7 +371,7 @@ void DS3231_read_temperature(int16_t *temperature) {
     *temperature = (temp_msb * 100) + ((temp_lsb >> 6)*25);
 		I2C_stop();
     
-    // Combine MSB and LSB to form the temperature value (0.25°C per LSB)
+    // Combine MSB and LSB to form the temperature value (0.25Â°C per LSB)
     
 	}
 
