@@ -29,3 +29,4 @@ parameter for Off and On during the Night are set via RBG Setting
 As before 1,2,3 are for the Led RGB 
 Then new 4 (hour) ,5 (minute) are for Off-time
 and 6 (hour) ,7 (minute) for On-time
+To deactivate set Off-time == On-time  
