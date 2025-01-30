@@ -1,4 +1,40 @@
+/*
+I used the original source code 
+formated it, added On/Off time during the night
+and made changes to RGB-configuration
+
+Starting with no experience with ST-programming
+I used ST Visual Developper with free Cosmic Compiler in Toolchain
+and got besides other beginner problems these:
+
+1. due to source code size limitation of Cosmic Compiler
+in the C-Source includes stm8s_gpio.c stm8s_tim1.c stm8s_flash.c
+unused functions must be deleted or commented out to reduce the size 
+else Linker error "segment .text size overflow (nnnn)" occurs 
+
+and 2. Uncomment the line  #define USE_FULL_ASSERT    (1) 
+in stm8s_conf.h else error "symbol _assert_failed not defined" will raise 
+
+and 3.
+Set "C-Compiler" setting "Optimization" in ST-Programmer to "Minimize code size"
+If not set and the code is to big, you get address warnings loading the bin-file to st-programmer.
+example. "FILE : line 188: Address 0x97A9 is out of range and is ignored!"
+You still can load the program to the chip but i got strange behaviours of the clock.
+I got this problem adding display On/Off during night time to the code.
+
+also as mentioned in the original code dont' forget 
+IMPORTANT: SET OPTIONBYTE AFR0 to Port C5, C6 & C7 to Alternative Function with the ST Visual Programmer
+or Leds won't work properly
+
+*/
+
 #include "stm8s.h"
+// Have to add these includes 
+#include "stm8s_gpio.h"
+#include "stm8s_gpio.c"
+#include "stm8s_tim1.c"
+#include "stm8s_flash.c"
+
 
 /* version 1.02 simplified the LED RGB settings
 	 version 1.01 added the ability to set the LED RGB parameters
@@ -121,6 +157,7 @@
 #define LONG_PRESS_THRESHOLD_MS 100
 #define TIMEOUT_DELAY_MS 10000
 
+#define RGBFACTOR 100
 // Enum for adjustment parameters
 typedef enum {
     PARAM_MINUTES,
@@ -131,8 +168,6 @@ typedef enum {
     PARAM_WEEKDAY,
     PARAM_MAX
 } ParamType;
-
-
 
 // Function prototypes
 /* void I2C_Init1(void);
@@ -149,11 +184,8 @@ void gpio_init1(void);
 void delay (uint16_t ms);
 uint8_t edit(uint8_t x, uint8_t y, uint8_t parameter);
 uint8_t changeRGB (uint8_t i, uint8_t parameter);
-uint8_t editRGB(uint8_t i, uint8_t y, uint8_t parameter);
-
-
-
-
+uint8_t editRGB(uint8_t i, uint8_t parameter);
+//void _assert_failed(uint8_t* file, uint32_t line);
 
 // initialize GPIO's 
 void gpio_init1(void) {
@@ -163,13 +195,11 @@ void gpio_init1(void) {
 		GPIO_DeInit(GPIOC); // prepare Port C for working
 		GPIO_DeInit(GPIOD); // prepare Port D for working
 
-
 		//Declare PD6 as push pull Output pin (used for semicolon)
     GPIO_Init (GPIOD, GPIO_PIN_6, GPIO_MODE_OUT_PP_HIGH_FAST);
-	  
-	 
+	  	 
 	 // Enable clock for GPIOC
-  //   CLK_PeripheralClockConfig(CLK_PERIPHERAL_GPIOC, ENABLE);
+   // CLK_PeripheralClockConfig(CLK_PERIPHERAL_GPIOC, ENABLE);
 	 
 	 // Configure PC3, PC5, and PC6 as output for TIM1 (PWM)
    // PC3 (Red) -> TIM1_CH3, PC5 (Blue) -> TIM1_CH1, PC6 (Green) -> TIM1_CH2
@@ -194,8 +224,7 @@ void gpio_init1(void) {
 		TIM1_TimeBaseInit(0,TIM1_COUNTERMODE_UP, 4095,0);
 		TIM1_Cmd(ENABLE);
 		TIM1_CtrlPWMOutputs(ENABLE);
-		
-		
+			
 
     // Initialize GPIOs for the pins used with the 74HC595
 		// GPIO_Init (GPIOD, GPIO_PIN_6, GPIO_MODE_OUT_PP_HIGH_FAST);
@@ -211,9 +240,6 @@ void gpio_init1(void) {
 		// Initialize GPIOs for the pins used for the push buttons
 		GPIO_Init(GPIOD, BUTTON_UP, GPIO_MODE_IN_PU_NO_IT);   // Pull-up input for UP button
     GPIO_Init(GPIOD, BUTTON_DOWN, GPIO_MODE_IN_PU_NO_IT); // Pull-up input for DOWN button
-
-
-
 }
 
 
@@ -334,7 +360,8 @@ void set_ds3231_time(uint8_t hours, uint8_t minutes, uint8_t seconds, uint8_t da
 }
 
 // Get the current time and date from the DS3231
-void get_ds3231_time(uint8_t *hours, uint8_t *minutes, uint8_t *seconds, uint8_t *day, uint8_t *month, uint8_t *year, uint8_t *weekday) {
+void get_ds3231_time(uint8_t *hours, uint8_t *minutes, uint8_t *seconds, uint8_t *day, uint8_t *month, uint8_t *year, uint8_t *weekday) 
+{
     I2C_start();
     I2C_write_byte( 0xD0 );  // DS3231 address + write bit
 		I2C_write_byte(0x00);  // Start from seconds register
@@ -353,10 +380,8 @@ void get_ds3231_time(uint8_t *hours, uint8_t *minutes, uint8_t *seconds, uint8_t
     I2C_stop();
 }
 
-
-
-
-void DS3231_read_temperature(int16_t *temperature) {
+void DS3231_read_temperature(int16_t *temperature) 
+{
     int8_t temp_msb;
     uint8_t temp_lsb;
     int16_t temp;
@@ -371,24 +396,19 @@ void DS3231_read_temperature(int16_t *temperature) {
     *temperature = (temp_msb * 100) + ((temp_lsb >> 6)*25);
 		I2C_stop();
     
-    // Combine MSB and LSB to form the temperature value (0.25Â°C per LSB)
-    
-	}
-
-
+    // Combine MSB and LSB to form the temperature value (0.25°C per LSB)    
+}
 
 void delay (uint16_t ms) //Function Definition
  {
-                 uint16_t i =0 ;
-                 int j=0;
-                 for (i=0; i<=ms; i++)
-                 {
-                                 for (j=0; j<120; j++) // Nop = Fosc/4
-                                 _asm("nop"); //Perform no operation //assembly code              
-                 }
+	 uint16_t i =0 ;
+	 int j=0;
+	 for (i=0; i<=ms; i++)
+	 {
+		 for (j=0; j<120; j++) // Nop = Fosc/4
+		 _asm("nop"); //Perform no operation //assembly code              
+	 }
  }
-
-
 
 // Shift 10 bits of data into the 595 shift registers
 void shift_out(uint16_t data) {
@@ -419,7 +439,6 @@ uint16_t get10BitPattern(uint8_t digit) {
 		
 }
 
-
 // Read button state with software debouncing
 uint8_t read_button(GPIO_Pin_TypeDef button) {
     if (GPIO_ReadInputPin(GPIOD, button) == RESET) {
@@ -432,136 +451,173 @@ uint8_t read_button(GPIO_Pin_TypeDef button) {
     return 0; // Button not pressed
 }
 
-
-
-
-void display_nixxies(uint8_t hours, uint8_t minutes){
-
+// Set the 4 Nixie tubes
+// param1 (hours) 	value left 2 digits for hours, day and "20" of year
+// param2 (minutes) value right 2 digits for minutes, month, left 2 digit of year and temperature
+// if value > 99 than "00" is displayed
+void display_nixxies(uint8_t hours, uint8_t minutes)
+{
 		if (hours < 99){
-		shift_out(get10BitPattern(((hours / 10) % 10)));
-		shift_out(get10BitPattern((hours % 10)));
+			shift_out(get10BitPattern(((hours / 10) % 10)));
+			shift_out(get10BitPattern((hours % 10)));
 		}
 		else {
-		shift_out(0);
-		shift_out(0);
+			shift_out(0);
+			shift_out(0);
 		}
 		if (minutes < 99){
-		shift_out(get10BitPattern(((minutes /10)% 10)));
-		shift_out(get10BitPattern((minutes % 10)));
+			shift_out(get10BitPattern(((minutes /10)% 10)));
+			shift_out(get10BitPattern((minutes % 10)));
 		}
 		else {
-		shift_out(0);
-		shift_out(0);
+			shift_out(0);
+			shift_out(0);
 		}
+		
 		latch_data();      // Latch the shifted data to the output registers
 		enable_output();
 }
 
-
-
-
-
-
 int main(void) {
-		uint8_t hour, minute, second;
-		uint8_t hours, minutes, seconds, oldseconds;
-		uint8_t year, month, day, weekday;
-		uint8_t red, green, blue;
-		uint8_t i;
-		int16_t temperature;
-		uint8_t nixie_digits[]={0x0,0x1,0x2,0x3};
-		uint16_t teller;
-		
-		// declare I2c ports
-		gpio_init1();
-
-		I2C_init();
-		
-		
-		/* Define FLASH programming time */
-    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
-
-    /* Unlock Data memory */
-    FLASH_Unlock(FLASH_MEMTYPE_DATA);
-			
-		/* retrieve RGB parameters from flash memory */
-		red = FLASH_ReadByte(0x40A5);
-		green = FLASH_ReadByte(0x40A6);
-		blue = FLASH_ReadByte(0x40A7);
-		
-		/* set RGB LED values */
-		TIM1_SetCompare3 (red *16 ) ; // red
-		TIM1_SetCompare1 (green * 16) ; // green
-		TIM1_SetCompare4 (blue * 16 ) ; // blue
-		
-
-   
-    // Infinite loop to read the time continuously
-		while (1) {
-  
-			// Read the time
-			get_ds3231_time(&hours, &minutes, &seconds, &day, &month, &year, &weekday);
-			
-			// Gget DS3231 internal temperature
-			DS3231_read_temperature(&temperature);    // Simple delay to slow down the loop
-		
-		
-			// TIM1_SetCompare1(0); // green
-			// TIM1_SetCompare3((4096 / 60) * seconds ); // red
-			// TIM1_SetCompare4(0);	// blue
+	uint8_t hour, minute, second;
+	uint8_t hours, minutes, seconds, oldseconds;
+	uint8_t year, month, day, weekday;
+	uint8_t hourOff, minuteOff;
+	uint8_t hourOn, minuteOn;
+	uint8_t red, green, blue;
+	uint8_t i;
+	int16_t temperature;
+	uint8_t nixie_digits[]={0x0,0x1,0x2,0x3};
+	uint16_t teller;
 	
-			
-			if (GPIO_ReadInputPin(GPIOD, BUTTON_DOWN) == RESET){
-			 i= editRGB (0,0,244);	
-			 i= editRGB (1,0,244);	
-			 i= editRGB (2,0,244);	
-			}
-			
-			
-			if (GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){
-				i=0;
-				hours = edit (0,0, hours);
-				minutes = edit (1,0, minutes);
-				day = edit (2,0, day);
-				month = edit (3, 0, month);
-				year = edit (4,0, year);
-			}
+	uint8_t displayOff;
+	uint8_t displayOffOld;
+	
+	// declare I2c ports
+	gpio_init1();
+
+	I2C_init();
+	
+	
+	/* Define FLASH programming time */
+	FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
+
+	/* Unlock Data memory */
+	FLASH_Unlock(FLASH_MEMTYPE_DATA);
 		
+	/* retrieve RGB parameters from flash memory */
+	red = FLASH_ReadByte(0x40A5);
+	green = FLASH_ReadByte(0x40A6);
+	blue = FLASH_ReadByte(0x40A7);
+	
+	/* set RGB LED values */
+	TIM1_SetCompare3 (red *RGBFACTOR ) ; // red
+	TIM1_SetCompare1 (green * RGBFACTOR) ; // green
+	TIM1_SetCompare4 (blue * RGBFACTOR ) ; // blue
+ 
+ 	/* retrieve On/Off parameters from flash memory */
+	hourOff = FLASH_ReadByte(0x40A1);
+	minuteOff = FLASH_ReadByte(0x40A2);
+	hourOn = FLASH_ReadByte(0x40A3);
+	minuteOn = FLASH_ReadByte(0x40A4);
+	displayOff = 0;
+	displayOffOld = 2;
+	
+	// Infinite loop to read the time continuously
+	while (1) {
+		// Read the time
+		get_ds3231_time(&hours, &minutes, &seconds, &day, &month, &year, &weekday);
 		
-			if ( seconds > 45 && seconds < 50 ) //show temperature (int. part)
-				{
+		// Get DS3231 internal temperature
+		DS3231_read_temperature(&temperature);    // Simple delay to slow down the loop		
+				
+		if (GPIO_ReadInputPin(GPIOD, BUTTON_DOWN) == RESET)
+		{
+			red= editRGB (0,red);	
+			green= editRGB (1,green);	
+			blue= editRGB (2,blue);			 
+			hourOff= editRGB (3,hourOff);			 
+			minuteOff= editRGB (4,minuteOff);			 
+			hourOn= editRGB (5,hourOn);			 
+			minuteOn= editRGB (6,minuteOn);	
+		}		
+		
+		if (GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET)
+		{
+			i=0;
+			hours = edit (0,0, hours);
+			minutes = edit (1,0, minutes);
+			day = edit (2,0, day);
+			month = edit (3, 0, month);
+			year = edit (4,0, year);
+		}		
+		
+		// Check off time . Deaktivate OnOff setting both times to 00:00
+		if ((hourOff*60 + minuteOff) != (hourOn*60 + minuteOn) && (((hours*60 + minutes) >  (hourOff*60 + minuteOff)) || (( hours*60 + minutes) < (hourOn*60 + minuteOn))))
+		{
+			displayOff = 1;
+			if (displayOffOld == 0 || displayOffOld == 2)
+			{
+				displayOffOld = 1;			
+				TIM1_SetCompare1(( 2)); // green a little light
+				TIM1_SetCompare3(( 0)); // red
+				TIM1_SetCompare4(( 0));	// blue
+			}
+		}
+		else
+		{
+			displayOff = 0;
+			if (displayOffOld == 1  || displayOffOld == 2)
+			{
+				displayOffOld = 0;
+				TIM1_SetCompare1(( green * RGBFACTOR)); // green
+				TIM1_SetCompare3(( red * RGBFACTOR)); // red
+				TIM1_SetCompare4(( blue * RGBFACTOR));	// blue
+			}			
+		}				
+	
+		if (displayOff == 1)
+		{
+			GPIO_WriteLow(GPIOD,GPIO_PIN_6);
+			display_nixxies( 0xAA , 0xAA);
+		}
+		else
+		{			
+			// Display is on
+			if ( seconds > 48 && seconds < 50 ) //show temperature (int. part)
+			{
 				GPIO_WriteLow(GPIOD,GPIO_PIN_6);
 				display_nixxies( 0xAA , (temperature / 100));
-				} 
+			} 
 			else 
 			{
 				if ( seconds	> 30 && seconds < 35) // show date, alternating display (day + month) & ( 20 + year )
 				{
-					if ( seconds & 1){ // 
+					if ( seconds & 1)
+					{ // 
 						GPIO_WriteLow(GPIOD,GPIO_PIN_6);
 						display_nixxies( day, month);
-						}
-					else {
+					}
+					else 
+					{
 						GPIO_WriteLow(GPIOD,GPIO_PIN_6);
 						display_nixxies( 20, year);	
-						}
+					}
 				}	
 				else // normal show hours + minutes
 				{
-						if (oldseconds != seconds ){
-							oldseconds = seconds;	
-							GPIO_WriteReverse(GPIOD,GPIO_PIN_6); // toggle the semicolon every second
-						} 
-				display_nixxies( hours, minutes);
+					if (oldseconds != seconds)
+					{
+						oldseconds = seconds;
+						GPIO_WriteReverse(GPIOD,GPIO_PIN_6); // toggle the semicolon every second
+					} 
+					
+					display_nixxies( hours, minutes);
 				}
-		}
-				
-		}
+			}		
+		}			
+	} // while(1)
 }
-
-
-
-
 
 
 uint8_t BCD_To_Decimal(uint8_t bcd) {
@@ -572,15 +628,12 @@ uint8_t Decimal_To_BCD(uint8_t decimal) {
     return ((decimal / 10) << 4) | (decimal % 10);
 }
 
-
-
 // Latch the shifted data into the output registers
 void latch_data(void) {
     // Pulse the RCLK (Register Clock)
     GPIO_WriteHigh(GPIOC, LATCH_PIN);
     GPIO_WriteLow(GPIOC, LATCH_PIN);
 }
-
 // Enable the output (OE is active low)
 void enable_output(void) {
     GPIO_WriteLow(GPIOD, OE_PIN);  // Set OE low to enable output
@@ -591,292 +644,388 @@ void disable_output(void) {
     GPIO_WriteHigh(GPIOD, OE_PIN);  // Set OE high to disable output
 }
 
+uint8_t edit(uint8_t i, uint8_t y, uint8_t parameter)
+{  
+	// char text[3];
+	uint8_t hour, minute, second;
+	uint8_t hours, minutes, seconds, oldseconds;
+	uint8_t year, month, day, weekday;
 
-uint8_t edit(uint8_t i, uint8_t y, uint8_t parameter){  // char text[3];
-  	uint8_t hour, minute, second;
-		uint8_t hours, minutes, seconds, oldseconds;
-		uint8_t year, month, day, weekday;
 
+	get_ds3231_time(&hours, &minutes, &seconds, &day, &month, &year, &weekday);
 
-get_ds3231_time(&hours, &minutes, &seconds, &day, &month, &year, &weekday);
-
-switch (i){
-										case 0:
-											parameter = hours;
-											break;
-										case 1:
-											parameter = minutes;
-											break;
-										case 2:
-											parameter = day;
-											break;
-										case 3:
-											parameter = month;
-											break;
-										case 4:
-											parameter = year;
-											break;
-										case 5:
-											parameter = weekday;
-										default:
-											break;
-										}
+	switch (i){
+		case 0:
+			parameter = hours;
+			break;
+		case 1:
+			parameter = minutes;
+			break;
+		case 2:
+			parameter = day;
+			break;
+		case 3:
+			parameter = month;
+			break;
+		case 4:
+			parameter = year;
+			break;
+		case 5:
+			parameter = weekday;
+		default:
+			break;
+	}
 										
-
-while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){
-}                        // Wait until button (pin #8) is released
-
+	// Wait until button (pin #8) is released
+	while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){}                        
 	
-	while(TRUE){
+	while(TRUE)
+	{	
+		while(read_button (BUTTON_DOWN)) 
+		{                      
+			// button (pin #9) is pressed			
+			parameter++;
+			
+			// If hours > 23 ==> hours = 0
+			if (i == 0 && parameter > 23)
+			{
+				parameter = 0;
+			}
 				
-				//				while((GPIO_ReadInputPin(GPIOD, BUTTON_DOWN) == RESET)) 
-				
-								while(read_button (BUTTON_DOWN)) {                      // If button (pin #9) is pressed
-									
-									parameter++;
-									
-									if (i == 0 && parameter > 23){               // If hours > 23 ==> hours = 0
-										parameter = 0;}
-										
-									if (i == 1 && parameter > 59){               // If minutes > 59 ==> minutes = 0
-									parameter = 0;}
-											// display_nixxies( hours, minutes);
-									if (i == 2 && parameter > 31){               // If date > 31 ==> date = 1
-									parameter = 1;}
-									
-									if (i == 3 && parameter > 12){               // If month > 12 ==> month = 1
-									parameter = 1;}
-									
-									if (i == 4 && parameter > 99){               // If year > 99 ==> year = 0
-									parameter = 0;}
-							 
-									if (i == 5 && parameter > 7){               // If year > 99 ==> year = 0
-									parameter = 1;}
-							 
-}								
-									
-									switch (i){
-										case 0:
-											GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
-											display_nixxies( 255, minutes);
-											break;
-										case 1:
-											GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
-											display_nixxies( hours, 255);
-											break;
-										case 2:
-											GPIO_WriteLow(GPIOD,GPIO_PIN_6);
-											display_nixxies( 255, month);
-											break;
-										case 3:
-											GPIO_WriteLow(GPIOD,GPIO_PIN_6);
-											display_nixxies( day, 255);
-											break;
-										case 4:
-											GPIO_WriteLow(GPIOD,GPIO_PIN_6);
-											display_nixxies( 20, 255);
-											break;											
-										case 5:
-											GPIO_WriteLow(GPIOD,GPIO_PIN_6);
-											display_nixxies( 255, 255);
-											break;											
-										default:
-											GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
-											display_nixxies( 255, 255);
-											break;
-											
-										}
-							 
-									delay (200);                              // Wait 200ms
-									
-								
-    
-								switch (i){
-										case 0:
-											display_nixxies( parameter, minutes);
-											break;
-										case 1:
-											display_nixxies( hours, parameter);
-											break;
-										case 2:
-											display_nixxies( parameter, month);
-											break;
-										case 3:
-											display_nixxies( day, parameter);
-											break;
-										case 4:
-											display_nixxies( 20, parameter);
-											break;
-										case 5:
-											display_nixxies( parameter, 255);
-											break;					
-										default:
-											display_nixxies( 255, 255);
-											break;
-										}
-									
-									delay (200);
-
-								if (read_button(BUTTON_UP)) {                         // If button (pin #8) is pressed
-								
-									switch (i){
-										case 0:
-											hours = parameter;
-											break;
-										case 1:
-											minutes = parameter;
-											break;
-										case 2:
-											day = parameter;
-											break;
-										case 3:
-											month = parameter;
-											break;
-										case 4:
-											year = parameter;
-											break;
-										case 5:
-											weekday = parameter;
-										default:
-											break;	
-										}
-										seconds = 0;
-								set_ds3231_time(hours, minutes, seconds, day, month, year, weekday);  // Update the time with any changes
-							//	i++;                                       // Increament 'i' for the next parameter
-								return parameter;                          // Return parameter value and exit
-								}
-								
-				
+			// If minutes > 59 ==> minutes = 0
+			if (i == 1 && parameter > 59)
+			{               
+				parameter = 0;
+			}
+			
+			// If date > 31 ==> date = 1
+			if (i == 2 && parameter > 31)
+			{               
+				parameter = 1;
+			}
+			
+			// If month > 12 ==> month = 1
+			if (i == 3 && parameter > 12)
+			{               
+				parameter = 1;
+			}
+			
+			// If year > 99 ==> year = 0
+			if (i == 4 && parameter > 99)
+			{              
+				parameter = 0;
+			}
+	 
+			/* not used
+			// If weekday > 7 ==> year = 1 
+			if (i == 5 && parameter > 7)
+			{               
+				parameter = 1;
+			}
+			*/
+	 
+		}								
+			
+		switch (i)
+		{
+			case 0:
+				GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
+				display_nixxies( 255, minutes);
+				break;
+			case 1:
+				GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
+				display_nixxies( hours, 255);
+				break;
+			case 2:
+				GPIO_WriteLow(GPIOD,GPIO_PIN_6);
+				display_nixxies( 255, month);
+				break;
+			case 3:
+				GPIO_WriteLow(GPIOD,GPIO_PIN_6);
+				display_nixxies( day, 255);
+				break;
+			case 4:
+				GPIO_WriteLow(GPIOD,GPIO_PIN_6);
+				display_nixxies( 20, 255);
+				break;											
+			case 5:
+				GPIO_WriteLow(GPIOD,GPIO_PIN_6);
+				display_nixxies( 255, 255);
+				break;											
+			default:
+				GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
+				display_nixxies( 255, 255);
+				break;				
 		}
-	
-	
+
+		delay (400);  // Wait 200ms
+
+		switch (i)
+		{
+			case 0:
+				display_nixxies( parameter, minutes);
+				break;
+			case 1:
+				display_nixxies( hours, parameter);
+				break;
+			case 2:
+				display_nixxies( parameter, month);
+				break;
+			case 3:
+				display_nixxies( day, parameter);
+				break;
+			case 4:
+				display_nixxies( 20, parameter);
+				break;
+			case 5:
+				display_nixxies( parameter, 255);
+				break;					
+			default:
+				display_nixxies( 255, 255);
+				break;
+		}
+		
+		delay (400);
+
+		// If button (pin #8) is pressed
+		if (read_button(BUTTON_UP)) 
+		{ 
+			switch (i)
+			{
+				case 0:
+					hours = parameter;
+					break;
+				case 1:
+					minutes = parameter;
+					break;
+				case 2:
+					day = parameter;
+					break;
+				case 3:
+					month = parameter;
+					break;
+				case 4:
+					year = parameter;
+					break;
+				case 5:
+					weekday = parameter;
+				default:
+					break;	
+			}
+				
+			seconds = 0;
+			set_ds3231_time(hours, minutes, seconds, day, month, year, weekday);  // Update the time with any changes
+			return parameter;                          // Return parameter value and exit
+		}				
+	}	
 }
 
 
-
-
-
-uint8_t editRGB(uint8_t i, uint8_t y, uint8_t parameter){  // char text[3];
-  	uint8_t red, green, blue;
-		uint32_t mem = 0x00;
-		
-		
-		red = FLASH_ReadByte(0x40A5);
-		green = FLASH_ReadByte(0x40A6);
-		blue = FLASH_ReadByte(0x40A7);		
-
-switch (i){
-										case 0:  // red
-											parameter = red;
-											break;
-										case 1:  // green
-											parameter = green;
-											break;
-										case 2:  // blue
-											parameter = blue;
-											break;
-										default:
-											break;
-										}
-										
-
-while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){
-}                        // Wait until button is released
-
+// Sets RGB Values
+uint8_t editRGB(uint8_t i, uint8_t parameter)
+{  
+	uint8_t red, green, blue;
+	uint8_t hourOff, minuteOff;
+	uint8_t hourOn, minuteOn;
+	uint32_t mem = 0x00;
 	
-	while(TRUE){
-				
-				//				while((GPIO_ReadInputPin(GPIOD, BUTTON_DOWN) == RESET)) 
-				
-								while(read_button (BUTTON_UP)) {                      // If button (pin #9) is pressed
-									
-									parameter=parameter+10;
-									
-									if (parameter > 100 ){
-										parameter =0;	
-}									}
-									
-									switch (i){
-										case 0:
-											TIM1_SetCompare3(( parameter * 20)); // red
-											display_nixxies( 1, 255);
-											break;
-										case 1:
-											TIM1_SetCompare1(( parameter * 20)); // green
-											display_nixxies( 2, 255);
-											break;
-										case 2:
-											TIM1_SetCompare4(( parameter * 20));	// blue
-											display_nixxies( 3, 255);
-											break;
-										default:
-											GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
-											display_nixxies( 255, 255);
-											break;
-											
-										}
-							 
-									delay (200);                              // Wait 200ms
-									
-								
-    
-								switch (i){
-										case 0: // edit hours
-											
-											display_nixxies( 1, parameter);
-											break;
-										case 1: // edit minutes
-											display_nixxies( 2, parameter);
-											break;
-										case 2: // edit day
-											display_nixxies( 3, parameter);
-											break;
-										default:
-											display_nixxies( 255, 255);
-											break;
-										}
-									
-									delay (200);
-
-								if (read_button(BUTTON_DOWN)) {                         // If button (pin #8) is pressed
-								
-									switch (i){
-										case 0: // exit hours edit
-											red = parameter;
-										//		FLASH_ProgramByte(0x40A5,red);
-											break;
-										case 1: // exit minutes edit
-										//	FLASH_ProgramByte(0x40A6,green);
-											green = parameter;
-											break; 
-										case 2: // exit day edit
-											blue = parameter;
-										//	FLASH_ProgramByte(0x40A7,blue);
-											break;
-										default:
-											break;	
-										}
-										// write new parameters to flash memory
-										FLASH_ProgramByte(0x40A5,red);
-										FLASH_ProgramByte(0x40A6,green);
-										FLASH_ProgramByte(0x40A7,blue);
-										// set RGB LED 
-										TIM1_SetCompare1(( green * 20)); // green
-										TIM1_SetCompare3(( red * 20)); // red
-										TIM1_SetCompare4(( blue * 20));	// blue
 	
+	red = FLASH_ReadByte(0x40A5);
+	green = FLASH_ReadByte(0x40A6);
+	blue = FLASH_ReadByte(0x40A7);		
+	
+	hourOff = FLASH_ReadByte(0x40A1);
+	minuteOff = FLASH_ReadByte(0x40A2);
+	hourOn = FLASH_ReadByte(0x40A3);
+	minuteOn = FLASH_ReadByte(0x40A4);
 
-										// set_ds3231_time(hours, minutes, seconds, day, month, year, weekday);  // Update the time with any changes
-										// i++;
-								return parameter;                          // Return parameter value and exit
-								}
-						
-		
-				
+
+	switch (i)
+	{
+		case 0:  // red
+			parameter = red;
+			break;
+		case 1:  // green
+			parameter = green;
+			break;
+		case 2:  // blue
+			parameter = blue;
+			break;
+		case 3:  // hourOff
+			parameter = hourOff;
+			break;
+		case 4:  // minuteOff
+			parameter = minuteOff;
+			break;
+		case 5:  // hourOn
+			parameter = hourOn;
+			break;
+		case 6:  // minuteOn
+			parameter = minuteOn;
+			break;
+		default:
+			break;
+	}			
+	
+	// Wait until button is released
+	while(GPIO_ReadInputPin(GPIOD, BUTTON_UP) == RESET){}    
+	
+	while(TRUE)
+	{
+		while(read_button (BUTTON_UP)) 
+		{        
+			// If button (pin #9) is pressed
+			parameter=parameter + 1;
+			
+			switch (i)
+			{
+				case 0:
+				case 1:
+				case 2:
+					// Leds
+					if (parameter > 25 )
+					{
+						parameter =0;	
+					}		
+					break;
+				case 3: 
+					// HourOff values between hour 18 and 23 + 0
+					if (parameter > 23 )
+					{ 
+						parameter = 0;
+					}
+					else
+					{ 	
+						if(parameter < 18 && parameter != 0 )
+						{
+							parameter = 18;	
+						}		
+					}
+					break;
+				case 5:
+					// HourOn values between 0 and 10 
+					if (parameter > 10 )
+					{
+						parameter = 0;	
+					}		
+					break;
+				case 4: 
+				case 6:			
+					//minutesOff/On  
+					if (parameter > 59 )
+					{
+						parameter =0;	
+					}		
+					break;
+			}			
 		}
-	
+		
+		
+		switch (i)
+		{
+			case 0:
+				TIM1_SetCompare3(( parameter * RGBFACTOR)); // red
+				display_nixxies( 1, 255);
+				break;
+			case 1:
+				TIM1_SetCompare1(( parameter * RGBFACTOR)); // green
+				display_nixxies( 2, 255);
+				break;
+			case 2:
+				TIM1_SetCompare4(( parameter * RGBFACTOR));	// blue
+				display_nixxies( 3, 255);
+				break;
+			case 3: 
+			case 4:
+			case 5: 
+			case 6:
+				break;
+			default:
+				GPIO_WriteHigh(GPIOD,GPIO_PIN_6);
+				display_nixxies( 255, 255);
+				break;				
+		}
+ 
+		delay (400);                              // Wait 200ms
+
+		switch (i)
+		{
+			case 0: // edit red					
+				display_nixxies( 1, parameter);
+				break;
+			case 1: // edit green
+				display_nixxies( 2, parameter);
+				break;
+			case 2: // edit blue
+				display_nixxies( 3, parameter);
+				break;
+			case 3: // edit hourOff
+				display_nixxies( 4, parameter);
+				break;
+			case 4: // edit minuteOff
+				display_nixxies( 5, parameter);
+				break;
+			case 5: // edit hourOn
+				display_nixxies( 6, parameter);
+				break;
+			case 6: // edit minuteOn
+				display_nixxies( 7, parameter);
+				break;
+			default:
+				display_nixxies( 255, 255);
+				break;
+		}
+			
+		delay (400);
+
+		// If button (pin #8) is pressed
+		if (read_button(BUTTON_DOWN)) 
+		{		
+			switch (i){
+				case 0: // exit red edit
+					red = parameter;
+					break;
+				case 1: // exit green edit
+					green = parameter;
+					break; 
+				case 2: // exit blue edit
+					blue = parameter;
+					break;
+				case 3: // exit hourOff edit
+					hourOff = parameter;
+					break;
+				case 4: // exit minuteOff edit
+					minuteOff = parameter;
+					break;
+				case 5: // exit hourOn edit
+					hourOn = parameter;
+					break;
+				case 6: // exit minuteOn edit
+					minuteOn = parameter;
+					break;
+				default:
+					break;	
+			}
+			
+			// write new parameters to flash memory
+			FLASH_ProgramByte(0x40A5,red);
+			FLASH_ProgramByte(0x40A6,green);
+			FLASH_ProgramByte(0x40A7,blue);
+			
+			FLASH_ProgramByte(0x40A1,hourOff);
+			FLASH_ProgramByte(0x40A2,minuteOff);
+			FLASH_ProgramByte(0x40A3,hourOn);
+			FLASH_ProgramByte(0x40A4,minuteOn);
+
+			// set RGB LED 
+			TIM1_SetCompare1(( green * RGBFACTOR)); // green
+			TIM1_SetCompare3(( red * RGBFACTOR)); // red
+			TIM1_SetCompare4(( blue * RGBFACTOR));	// blue
+
+			return parameter;                          // Return parameter value and exit
+		}				
+	}
 	
 }
-
 
 
