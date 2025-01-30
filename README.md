@@ -14,8 +14,7 @@ else Linker error "segment .text size overflow (nnnn)" occurs
 2. Uncomment the line  #define USE_FULL_ASSERT    (1) 
 in stm8s_conf.h else error "symbol _assert_failed not defined" will raise 
 
-3.
-Set "C-Compiler" setting "Optimization" in ST-Programmer to "Minimize code size"
+3. Set "C-Compiler" setting "Optimization" in ST-Programmer to "Minimize code size"
 If not set and the code is to big, you get address warnings loading the bin-file to st-programmer.
 example. "FILE : line 188: Address 0x97A9 is out of range and is ignored!"
 You still can load the program to the chip but i got strange behaviours of the clock.
