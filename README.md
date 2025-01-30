@@ -25,8 +25,8 @@ also as mentioned in the original code dont' forget
 or Leds won't work properly"
 
 
-parameter for Off and On during the Night are set via RBG Setting
-As before 1,2,3 are for the Led RGB 
-Then new 4 (hour) ,5 (minute) are for Off-time
-and 6 (hour) ,7 (minute) for On-time
-To deactivate set Off-time == On-time  
+parameter for Off and On during the Night are set via RBG Setting <br />
+As before 1,2,3 are for the Led RGB <br />
+Then new 4 (hour) ,5 (minute) are for Off-time <br />
+and 6 (hour) ,7 (minute) for On-time <br />
+To deactivate set Off-time == On-time   <br />
